@@ -19,17 +19,17 @@ class MQTTClient(object):
 
     # callback of function connect()
     def on_connect(self,client, userdata, flags, rc):
-        # print 'userdata', userdata
-        # print 'flag', flags
-        # print 'rc', str(rc)
+        print 'userdata', userdata
+        print 'flag', flags
+        print 'rc', str(rc)
         '''
         userdata None
         flag {'session present': 0}
         rc 0
         '''
 
-        # subscribe the topic /s2c (server to client)
-        self.client.subscribe('/s2c')
+        # subscribe the topic s2c (server to client)
+        self.client.subscribe('s2c')
         pass
 
     # callback of coming message
@@ -37,6 +37,13 @@ class MQTTClient(object):
         print msg.payload
         pass
 
+    # connect the
+    def publish(self, topic, payload):
+        self.client.publish(topic, payload)
+
 if __name__ == '__main__':
     a = MQTTClient()
-    a.client.loop_forever()
+    while 1:
+        a.client.loop()
+
+
