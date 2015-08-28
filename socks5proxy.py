@@ -21,11 +21,12 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
         while True:
             r, w, e = select.select(fdset, [], [])
             print r
-            print w
             if sock in r:
-                if remote.send(sock.recv(4096)) <= 0: break
+                if remote.send(sock.recv(4096)) <= 0:
+                    break
             if remote in r:
-                if sock.send(remote.recv(4096)) <= 0: break
+                if sock.send(remote.recv(4096)) <= 0:
+                    break
     def handle(self):
         try:
             conn = self.connection
