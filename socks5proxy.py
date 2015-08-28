@@ -11,22 +11,42 @@ import struct
 import time
 
 
+
+
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
 
 
 class Socks5Handler(SocketServer.StreamRequestHandler):
+    def handle_and_send(self, sock, data):
+        # TODO ENCRYPTION AND SEND VIA MQTT
+        bytes_sent = 0
+        while True:
+            r = sock.send(data[bytes_sent:])
+            if r < 0:
+                return r
+            bytes_sent += r
+            if bytes_sent == len(data):
+                return bytes_sent
     def handle_tcp(self, sock, remote):
         fdset = [sock, remote]
         while True:
             r, w, e = select.select(fdset, [], [])
-            print r
             if sock in r:
-                if remote.send(sock.recv(4096)) <= 0:
+                data = sock.recv(4096)
+                if len(data) <= 0:
                     break
+                result = self.handle_and_send(remote, data)
+                if result < len(data):
+                    raise Exception('failed to send all data')
+
             if remote in r:
-                if sock.send(remote.recv(4096)) <= 0:
+                data = remote.recv(4096)
+                if len(data) <= 0:
                     break
+                result = self.handle_and_send(sock, data)
+                if result < len(data):
+                    raise Exception('failed to send all data')
     def handle(self):
         try:
             conn = self.connection
