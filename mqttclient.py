@@ -44,6 +44,7 @@ class MQTTClient(object):
 if __name__ == '__main__':
     a = MQTTClient()
     while 1:
+        # a.client.publish('c2s','test')
         a.client.loop()
 
 
