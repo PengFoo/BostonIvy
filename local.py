@@ -1,7 +1,11 @@
 # !/usr/bin/python
 # -*- coding: UTF-8 -*-
-
 __author__ = 'fp'
+
+'''
+local.py is actually a socks5 server to send data
+to remote server via MQTT protocal
+'''
 
 import socket
 import sys
@@ -12,24 +16,20 @@ import time
 import mqttclient
 
 
-
-
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
 
 
 class Socks5Handler(SocketServer.StreamRequestHandler):
-
+    c = mqttclient.MQTTClient()
     def handle_and_send(self, sock, data):
-        # TODO ENCRYPTION AND SEND VIA MQTT
+        # TODO ENCRYPTION
+        # TODO SEND VIA MQTT
         bytes_sent = 0
-        while True:
-            r = sock.send(data[bytes_sent:])
-            if r < 0:
-                return r
-            bytes_sent += r
-            if bytes_sent == len(data):
-                return bytes_sent
+        # print [ord(i) for i in data]
+        # print len(data)
+        data = bytearray(data)
+        self.c.client.publish('c2s',data)
 
     def handle_tcp(self, sock, remote):
         fdset = [sock, remote]
@@ -40,17 +40,13 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
                 data = sock.recv(4096)
                 if len(data) <= 0:
                     break
-                result = self.handle_and_send(remote, data)
-                if result < len(data):
-                    raise Exception('failed to send all data')
+                self.handle_and_send(remote, data)
 
             if remote in r:
                 data = remote.recv(4096)
                 if len(data) <= 0:
                     break
-                result = self.handle_and_send(sock, data)
-                if result < len(data):
-                    raise Exception('failed to send all data')
+                self.handle_and_send(sock, data)
 
     def handle(self):
         try:
