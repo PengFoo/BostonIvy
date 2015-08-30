@@ -29,7 +29,7 @@ class MQTTClient(object):
         '''
 
         # subscribe the topic s2c (server to client)
-        self.client.subscribe('c2s')
+        # self.client.subscribe('c2s')
         pass
 
     # callback of coming message
@@ -43,6 +43,7 @@ class MQTTClient(object):
 
 if __name__ == '__main__':
     c = MQTTClient()
+    c.client.subscribe('c2s')
     while 1:
         # c.client.publish('c2s','test')
         c.client.loop()

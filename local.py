@@ -15,13 +15,15 @@ import struct
 import time
 import mqttclient
 
+c = mqttclient.MQTTClient()
 
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
 
 
 class Socks5Handler(SocketServer.StreamRequestHandler):
-    c = mqttclient.MQTTClient()
+    # is it OK?
+    global c
     def handle_and_send(self, sock, data):
         # TODO ENCRYPTION
         # TODO SEND VIA MQTT
@@ -29,7 +31,7 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
         # print [ord(i) for i in data]
         # print len(data)
         data = bytearray(data)
-        self.c.client.publish('c2s',data)
+        c.client.publish('c2s',data)
 
     def handle_tcp(self, sock, remote):
         fdset = [sock, remote]
@@ -131,6 +133,11 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
 
         pass
 
+if __name__ == '__main__':
+    server = Server(('', 8765), Socks5Handler)
+    c.client.subscribe('s2c')
+    while 1:
+        print 1
+        c.client.loop()
+        server._handle_request_noblock()
 
-server = Server(('', 8765), Socks5Handler)
-server.serve_forever()

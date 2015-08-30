@@ -19,7 +19,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
 
 class Socks5Handler(SocketServer.StreamRequestHandler):
-
+    # send the data in order and in pieces
     def handle_and_send(self, sock, data):
         # TODO ENCRYPTION AND SEND VIA MQTT
         bytes_sent = 0
@@ -95,7 +95,7 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
                 length = ord(rf.read(1))
                 addr = rf.read(length)
                 # print addr
-            elif ayyp == 4:
+            elif atyp == 4:
                 # ipv6
                 # TODO handle the ipv6 address
                 addr = 0
