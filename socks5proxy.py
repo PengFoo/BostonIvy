@@ -4,12 +4,9 @@
 __author__ = 'fp'
 
 import socket
-import sys
 import select
 import SocketServer
 import struct
-import time
-import mqttclient
 
 
 
@@ -135,6 +132,6 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
 
         pass
 
-
-server = Server(('', 8765), Socks5Handler)
-server.serve_forever()
+if __name__ == '__main__':
+    server = Server(('', 8765), Socks5Handler)
+    server.serve_forever()
