@@ -12,18 +12,19 @@ import sys
 import select
 import SocketServer
 import struct
-import time
+import time, datetime
 import mqttclient
+import thread
 
 c = mqttclient.MQTTClient()
-
+dict_conn = {}
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
 
 
 class Socks5Handler(SocketServer.StreamRequestHandler):
     # is it OK?
-    global c
+    global c, dict_conn
     def handle_and_send(self, sock, data):
         # TODO ENCRYPTION
         # TODO SEND VIA MQTT
@@ -33,28 +34,48 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
         data = bytearray(data)
         c.client.publish('c2s',data)
 
-    def handle_tcp(self, sock, remote):
-        fdset = [sock, remote]
-        while True:
-            r, w, e = select.select(fdset, [], [])
 
-            if sock in r:
-                data = sock.recv(4096)
-                if len(data) <= 0:
-                    break
-                self.handle_and_send(remote, data)
+    def handle_tcp(self, sock, remote, localport, remoteAddr, remotePort):
+            data = sock.recv(4096)
+            if len(data) <= 0:
+                return
+            lpStr = str(hex(localport))[2:]
+            raStr = str(remoteAddr)
+            rpStr = str(hex(remotePort))[2:]
 
-            if remote in r:
-                data = remote.recv(4096)
-                if len(data) <= 0:
+            lpStr = '0' * (4 - len(lpStr)) + lpStr
+            rpStr = '0' * (4 - len(rpStr)) + rpStr
+            lenRaStr = str(hex(len(raStr)))[2:]
+            raStr = '0' * (2- len(lenRaStr)) + lenRaStr + raStr
+
+            data = lpStr + raStr  + rpStr + data
+            self.handle_and_send(remote, data)
+            timeout = 60
+            i = time.time() + 60
+            while 1:
+                if time.time()>i:
                     break
-                self.handle_and_send(sock, data)
+                if localport in dict_conn.keys():
+                    bytes_sent = 0
+                    dataReply = dict_conn[localport]
+                    while 1:
+                        r = sock.send(dataReply[bytes_sent:])
+                        if r < 0:
+                            del dict_conn[localport]
+                            break
+                        bytes_sent += r
+                        if bytes_sent == len(dataReply):
+                            del dict_conn[localport]
+                            break
+
+
 
     def handle(self):
         try:
             conn = self.connection
             rf = self.rfile
             print 'connection from ', self.client_address
+
             # version 0x05, method 0x00, see socks5client and socks5 server for socks5 more info
 
             # should be client socks5 header 0x05 0x00 0x01
@@ -93,7 +114,7 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
                 length = ord(rf.read(1))
                 addr = rf.read(length)
                 # print addr
-            elif ayyp == 4:
+            elif atyp == 4:
                 # ipv6
                 # TODO handle the ipv6 address
                 addr = 0
@@ -111,6 +132,7 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
                     # TODO REPLACE THE SOCKET CODE TO THE MQTT CODE
                     remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     remote.connect((addr, port))
+
                     print 'Tcp connect to', addr, port
                 else:
                     # Command not supported
@@ -126,18 +148,34 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
             # 3. Transfering
             if reply[1] == '\x00':  # Success
                 if cmd == 1:    # 1. Tcp connect
-                    self.handle_tcp(conn, remote)
+                    self.handle_tcp(conn, remote, self.client_address[1], addr, port)
 
         except socket.error, e:
             print 'socket error!', e
 
         pass
 
+def on_message(client, userdata, msg):
+    '''
+    when mqtt message comes
+    do:
+    handle the payload and form the socket payload
+    set a socket
+    send the payload via socket.
+    '''
+    payload = msg.payload
+    localPort = int(payload[0:4], 16)
+    remoteAddrLen = int(payload[4:6],16)
+    remoteAddr = payload[6:6+remoteAddrLen]
+    remotePort = int(payload[6+remoteAddrLen:10+remoteAddrLen],16)
+    data = payload[10+remoteAddrLen:]
+
+    dict_conn[localPort] = data
+
 if __name__ == '__main__':
     server = Server(('', 8765), Socks5Handler)
+    c.client.on_message = on_message
     c.client.subscribe('s2c')
-    while 1:
-        print 1
-        c.client.loop()
-        server._handle_request_noblock()
+    thread.start_new_thread(c.client.loop_forever,())
+    server.serve_forever()
 
