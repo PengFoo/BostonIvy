@@ -15,9 +15,11 @@ import struct
 import time, datetime
 import mqttclient
 import thread
+import select
 
 c = mqttclient.MQTTClient()
-dict_conn = {}
+conns = []
+dict_sock = {}
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
 
@@ -36,20 +38,36 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
 
 
     def handle_tcp(self, sock, remote, localport, remoteAddr, remotePort):
-            data = sock.recv(4096)
-            if len(data) <= 0:
-                return
-            lpStr = str(hex(localport))[2:]
-            raStr = str(remoteAddr)
-            rpStr = str(hex(remotePort))[2:]
+            fdset = [sock]
+            while 1:
+                r, w, e = select.select(fdset, [], [])
 
-            lpStr = '0' * (4 - len(lpStr)) + lpStr
-            rpStr = '0' * (4 - len(rpStr)) + rpStr
-            lenRaStr = str(hex(len(raStr)))[2:]
-            raStr = '0' * (2- len(lenRaStr)) + lenRaStr + raStr
+                if sock in r:
+                    data = sock.recv(2048)
+                    if len(data) <= 0:
+                        return
+                    lpStr = str(hex(localport))[2:]
+                    raStr = str(remoteAddr)
+                    rpStr = str(hex(remotePort))[2:]
 
-            data = lpStr + raStr  + rpStr + data
-            self.handle_and_send(remote, data)
+                    lpStr = '0' * (4 - len(lpStr)) + lpStr
+                    rpStr = '0' * (4 - len(rpStr)) + rpStr
+                    lenRaStr = str(hex(len(raStr)))[2:]
+                    raStr = '0' * (2- len(lenRaStr)) + lenRaStr + raStr
+
+                    data = lpStr + raStr  + rpStr + data
+                    self.handle_and_send(remote, data)
+                    '''
+                    '''
+                    dict_sock[localport] = sock
+                    conns.append(localport)
+            while 1:
+                if localport not in conns:
+                    time.sleep(0.1)
+                    return
+            return
+            '''
+            '''
             timeout = 60
             i = time.time() + 60
             while 1:
@@ -74,7 +92,7 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
         try:
             conn = self.connection
             rf = self.rfile
-            print 'connection from ', self.client_address
+            # print 'connection from ', self.client_address
 
             # version 0x05, method 0x00, see socks5client and socks5 server for socks5 more info
 
@@ -133,7 +151,7 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
                     remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     remote.connect((addr, port))
 
-                    print 'Tcp connect to', addr, port
+                    # print 'Tcp connect to', addr, port
                 else:
                     # Command not supported
                     reply = b"\x05\x07\x00\x01"
@@ -154,7 +172,7 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
             print 'socket error!', e
 
         pass
-
+i = 0
 def on_message(client, userdata, msg):
     '''
     when mqtt message comes
@@ -163,14 +181,34 @@ def on_message(client, userdata, msg):
     set a socket
     send the payload via socket.
     '''
-    payload = msg.payload
-    localPort = int(payload[0:4], 16)
-    remoteAddrLen = int(payload[4:6],16)
-    remoteAddr = payload[6:6+remoteAddrLen]
-    remotePort = int(payload[6+remoteAddrLen:10+remoteAddrLen],16)
-    data = payload[10+remoteAddrLen:]
+    try:
+        payload = msg.payload
+        localPort = int(payload[0:4], 16)
+        remoteAddrLen = int(payload[4:6],16)
+        remoteAddr = payload[6:6+remoteAddrLen]
+        remotePort = int(payload[6+remoteAddrLen:10+remoteAddrLen],16)
+        data = payload[10+remoteAddrLen:]
+        dataReply = data
+        if dataReply == 'cometoend':
+            conns.remove(localPort)
+            print 'end!'
+            return
+        bytes_sent = 0
+        sock = dict_sock[localPort]
+        global i
+        i += 1
+        print 'sent' , i
+        while 1:
+            r = sock.send(dataReply[bytes_sent:])
+            if r < 0:
+                break
+            bytes_sent += r
+            if bytes_sent == len(dataReply):
+                break
+    except Exception,e:
+        print e
+        return
 
-    dict_conn[localPort] = data
 
 if __name__ == '__main__':
     server = Server(('', 8765), Socks5Handler)
