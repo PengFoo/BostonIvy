@@ -29,11 +29,11 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
     global c, dict_conn
     def handle_and_send(self, sock, data):
         # TODO ENCRYPTION
-        # TODO SEND VIA MQTT
         bytes_sent = 0
         # print [ord(i) for i in data]
         # print len(data)
         data = bytearray(data)
+        # print 'req:', data
         c.client.publish('c2s',data)
 
 
@@ -60,7 +60,8 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
                     '''
                     '''
                     dict_sock[localport] = sock
-                    conns.append(localport)
+                    if localport not  in conns:
+                        conns.append(localport)
             while 1:
                 if localport not in conns:
                     time.sleep(0.1)
@@ -72,6 +73,8 @@ class Socks5Handler(SocketServer.StreamRequestHandler):
             i = time.time() + 60
             while 1:
                 if time.time()>i:
+                    del dict_conn[localport]
+                    conns.remove(localport)
                     break
                 if localport in dict_conn.keys():
                     bytes_sent = 0
@@ -183,21 +186,23 @@ def on_message(client, userdata, msg):
     '''
     try:
         payload = msg.payload
+
         localPort = int(payload[0:4], 16)
         remoteAddrLen = int(payload[4:6],16)
         remoteAddr = payload[6:6+remoteAddrLen]
         remotePort = int(payload[6+remoteAddrLen:10+remoteAddrLen],16)
         data = payload[10+remoteAddrLen:]
+        print 'localport:',localPort,'len', len(payload),'connection', conns
         dataReply = data
         if dataReply == 'cometoend':
             conns.remove(localPort)
-            print 'end!'
+            # print 'end!'
             return
         bytes_sent = 0
         sock = dict_sock[localPort]
         global i
         i += 1
-        print 'sent' , i
+        # print 'sent' , i
         while 1:
             r = sock.send(dataReply[bytes_sent:])
             if r < 0:

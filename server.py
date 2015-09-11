@@ -249,16 +249,17 @@ def reply(client,payload):
     while 1:
         r, w, e = select.select(fdset, [], [])
         if remote in r:
-            data = remote.recv(2048)
+            data = remote.recv(4096)
             if len(data) <= 0:
-                print data
                 client.publish('s2c',header + 'cometoend')
                 sentnum += 1
-                print 'send an end!',sentnum
+                # print 'send an end!',sentnum
                 break
-            client.publish('s2c',bytearray(header+data))
+            print 'len:',len(header+data),'no.',sentnum
             sentnum += 1
-            print 'send',sentnum
+            client.publish('s2c',bytearray(header+data))
+
+            # print 'send',sentnum
 
     return
 
